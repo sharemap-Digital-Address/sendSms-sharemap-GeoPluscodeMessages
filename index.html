@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="tl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShareMap - Send via SMS</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      padding: 20px; 
+      max-width: 400px; 
+      margin: auto; 
+      background-color: #f4f7f6;
+    }
+    .card { 
+      background: #ffffff;
+      border: 1px solid #ccc; 
+      padding: 20px; 
+      border-radius: 12px; 
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
+    }
+    label {
+      font-weight: bold;
+      display: block;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+
+    /* Container para magkasama ang Input at Phonebook Button sa iisang linya */
+    .input-group {
+      position: relative;
+      display: flex;
+      align-items: center;
+      margin-top: 5px;
+    }
+
+    .input-group input {
+      width: 100%;
+      padding: 10px 42px 10px 10px;
+      box-sizing: border-box;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 15px;
+    }
+
+    /* Styling para sa Phonebook Button Icon sa loob ng input box */
+    .contact-btn {
+      position: absolute;
+      right: 6px;
+      background: none;
+      border: none;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 6px;
+      margin: 0;
+      width: auto;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .contact-btn:hover {
+      background-color: #e2e8f0;
+    }
+
+    /* Regular Inputs Styling */
+    input[type="text"] { 
+      width: 100%; 
+      padding: 10px; 
+      margin-top: 5px; 
+      box-sizing: border-box; 
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 15px;
+    }
+
+    .btn-send { 
+      width: 100%;
+      padding: 12px; 
+      margin-top: 15px; 
+      background-color: #28a745; 
+      color: white; 
+      border: none; 
+      font-weight: bold; 
+      font-size: 16px;
+      border-radius: 6px;
+      cursor: pointer; 
+    }
+    .btn-send:disabled { 
+      background-color: #888; 
+    }
+
+    /* Styling para sa Download App Button & Container */
+    .download-container {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #fff3cd;
+      border: 1px solid #ffeeba;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .btn-download {
+      width: 100%;
+      padding: 12px;
+      background-color: #0d6efd;
+      color: white;
+      border: none;
+      font-weight: bold;
+      font-size: 15px;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-bottom: 8px;
+    }
+    .download-msg {
+      font-size: 13px;
+      color: #856404;
+      margin: 0;
+    }
+
+    /* Custom Toast Notification Styling */
+    #toast {
+      visibility: hidden;
+      min-width: 250px;
+      background-color: #333;
+      color: #fff;
+      text-align: center;
+      border-radius: 6px;
+      padding: 12px;
+      position: fixed;
+      z-index: 1000;
+      left: 50%;
+      bottom: 30px;
+      transform: translateX(-50%);
+      font-size: 14px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    #toast.show {
+      visibility: visible;
+      animation: fadein 0.5s, fadeout 0.5s 2.5s;
+    }
+    @keyframes fadein {
+      from { bottom: 0; opacity: 0; }
+      to { bottom: 30px; opacity: 1; }
+    }
+    @keyframes fadeout {
+      from { bottom: 30px; opacity: 1; }
+      to { bottom: 0; opacity: 0; }
+    }
+
+    #status { 
+      font-size: 0.9em; 
+      color: #0275d8; 
+      margin-top: 12px; 
+      text-align: center; 
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h2 style="text-align: center; margin-top: 0;">📍 ShareMap via SMS</h2>
+  
+  <label for="sellerNum">Cellphone Number ng Seller/Rider:</label>
+  <div class="input-group">
+    <input type="tel" id="sellerNum" placeholder="09123456789" value="">
+    <button type="button" class="contact-btn" onclick="selectContact()" title="Pumili sa Contacts">📇</button>
+  </div>
+
+  <label for="buyerName">Pangalan Mo:</label>
+  <input type="text" id="buyerName" placeholder="hal. Juan Cruz">
+
+  <label for="landmark">Landmark / Katabi:</label>
+  <input type="text" id="landmark" placeholder="hal. Katabi ng Pulang Gate">
+
+  <button id="sendBtn" class="btn-send" onclick="generateAndSendSMS()">📱 GENERATE & SEND SMS</button>
+  
+  <!-- KONTENYER NG DOWNLOAD BUTTON (LILITAW LANG PAG WALANG NA-DETECT NA APP) -->
+  <div id="downloadArea" class="download-container" style="display: none;">
+    <button id="downloadBtn" class="btn-download" onclick="openPlayStore()">📥 DOWNLOAD GEOPLUSCODE MESSAGES</button>
+    <p class="download-msg">You're not installed the app yet. Please install GeoPluscode Messages app at Google Play Store.</p>
+  </div>
+
+  <p id="status"></p>
+</div>
+
+<!-- TOAST ELEMENT -->
+<div id="toast">No installed app detected</div>
+
+<script>
+  // =========================================================================
+  // APP CONFIGURATION & PLAY STORE LINK (ILAGAY ANG TUNAY NA LINK KAPAG NAGAWA NA)
+  // =========================================================================
+  const CUSTOM_APP_PACKAGE = "com.my.GeoPluscode.Messages";
+  
+  // Custom Deep Link Protocol para sa App (halimbawa: geopluscode://sms?...)
+  const CUSTOM_APP_SCHEME = "geopluscode";
+
+  // TODO: IMBENTO / TEMPORARY PLAY STORE PORTAL LINK.
+  // PALITAN ANG LINK NA ITO KAPAG LIVE NA ANG APP SA PLAY STORE!
+  const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=" + CUSTOM_APP_PACKAGE;
+  // =========================================================================
+
+  function showToast(message) {
+    const toast = document.getElementById("toast");
+    toast.innerText = message;
+    toast.className = "show";
+    setTimeout(() => { toast.className = toast.className.replace("show", ""); }, 3000);
+  }
+
+  function openPlayStore() {
+    // I-re-redirect sa Google Play Store link
+    window.location.href = PLAY_STORE_URL;
+  }
+
+  // Function para buksan ang Phonebook/Contacts ng Telepono
+  async function selectContact() {
+    const supported = 'contacts' in navigator && 'ContactsManager' in window;
+    
+    if (supported) {
+      try {
+        const props = ['tel'];
+        const opts = { multiple: false };
+        const contacts = await navigator.contacts.select(props, opts);
+        
+        if (contacts.length > 0 && contacts[0].tel && contacts[0].tel.length > 0) {
+          let cleanNumber = contacts[0].tel[0].replace(/[^0-9+]/g, '');
+          document.getElementById('sellerNum').value = cleanNumber;
+        }
+      } catch (err) {
+        console.log("Kanselado o hindi pinayagan ang Contacts permission:", err);
+      }
+    } else {
+      alert("Hindi suportado ng browser na ito ang direct contact picker. Maari mong i-type nang manu-mano ang number.");
+    }
+  }
+
+  const CODE_ALPHABET = "23456789CFGHJMPQRVWX";
+
+  // OFFICIAL ACCURATE GOOGLE PLUS CODE ENCODER
+  function encodeStandardPlusCode(latitude, longitude) {
+    let lat = Math.min(Math.max(latitude, -90), 90);
+    let lng = ((longitude + 180) % 360 + 360) % 360 - 180;
+
+    if (lat === 90) lat = 89.999999;
+
+    let latVal = lat + 90;
+    let lngVal = lng + 180;
+
+    let code = "";
+    let latPlace = 20;
+    let lngPlace = 20;
+
+    for (let i = 0; i < 5; i++) {
+      let latDigit = Math.floor(latVal / latPlace);
+      let lngDigit = Math.floor(lngVal / lngPlace);
+
+      latVal -= latDigit * latPlace;
+      lngVal -= lngDigit * lngPlace;
+
+      code += CODE_ALPHABET.charAt(latDigit) + CODE_ALPHABET.charAt(lngDigit);
+
+      latPlace /= 20;
+      lngPlace /= 20;
+    }
+
+    return code.substring(0, 8) + "+" + code.substring(8, 10);
+  }
+
+  // GLOBAL GEOCODING WITH ACCURATE PROVINCE FILTERING & NO-SPACE COMMAS FOR PLUS CODE
+  async function fetchGlobalLocalityDetails(lat, lng) {
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=en`);
+      const data = await response.json();
+      
+      if (data && data.address) {
+        const addr = data.address;
+
+        let city = addr.city || addr.town || addr.municipality || addr.village || addr.suburb || "";
+        if (city.toLowerCase() === "lucena") {
+          city = "Lucena City";
+        }
+
+        let candidates = [addr.province, addr.state, addr.county, addr.state_district];
+        let province = "";
+
+        for (let candidate of candidates) {
+          if (candidate) {
+            let trimmed = candidate.trim();
+            if (!/district/i.test(trimmed) && trimmed.toLowerCase() !== city.toLowerCase()) {
+              province = trimmed;
+              break;
+            }
+          }
+        }
+
+        if (!province && city.toLowerCase().includes("lucena")) {
+          province = "Quezon";
+        }
+
+        const country = addr.country || "";
+
+        let parts = [];
+        if (city) parts.push(city);
+        if (province) parts.push(province);
+        if (country) parts.push(country);
+
+        return parts.length > 0 ? `,${parts.join(', ')}` : "";
+      }
+    } catch (e) {
+      console.log("Hindi nakuha ang locality info:", e);
+    }
+    return "";
+  }
+
+  async function generateAndSendSMS() {
+    const btn = document.getElementById('sendBtn');
+    const status = document.getElementById('status');
+    const downloadArea = document.getElementById('downloadArea');
+    const phone = document.getElementById('sellerNum').value.trim();
+    const name = document.getElementById('buyerName').value.trim();
+    const landmark = document.getElementById('landmark').value.trim();
+
+    if (!phone) {
+      alert("Paki-lagay ang cellphone number ng Seller o Rider!");
+      return;
+    }
+
+    btn.disabled = true;
+    status.innerText = "🔍 Kumukuha ng GPS location...";
+
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          const latFixed = lat.toFixed(5);
+          const lngFixed = lng.toFixed(5);
+
+          const rawPlusCode = encodeStandardPlusCode(lat, lng);
+
+          status.innerText = "🔍 Kino-convert ang Address Format...";
+          
+          const localitySuffix = await fetchGlobalLocalityDetails(lat, lng);
+          const fullClassifiedAddress = `${rawPlusCode}${localitySuffix}`;
+
+          status.innerText = "📱 Vino-verify ang GeoPluscode Messages App...";
+
+          const smsText = `SHAREMAP DIGITAL ADDRESS\n\n` +
+                          `Pangalan: ${name || 'N/A'}\n` +
+                          `Landmark: ${landmark || 'N/A'}\n\n` +
+                          `Pluscode:\n${fullClassifiedAddress}\n\n` +
+                          `GPS Coordinates:\n${latFixed}, ${lngFixed}`;
+
+          const encodedText = encodeURIComponent(smsText);
+
+          // =========================================================================
+          // APP DETECTION LOGIC GAMIT ANG INTENT BENCHMARK
+          // =========================================================================
+          let appOpened = false;
+
+          // Kapag umalis sa window ang browser, ibig sabihin nabuksan ang app
+          const onBlur = () => {
+            appOpened = true;
+          };
+          window.addEventListener("blur", onBlur);
+
+          // Subukang buksan ang App via Android Intent URI na naka-link sa package name
+          const intentUri = `intent://send?phone=${phone}&body=${encodedText}#Intent;scheme=${CUSTOM_APP_SCHEME};package=${CUSTOM_APP_PACKAGE};end`;
+          
+          window.location.href = intentUri;
+
+          // Mag-aabang ng 2.5 segundo para suriin kung nabuksan ang app
+          setTimeout(() => {
+            window.removeEventListener("blur", onBlur);
+
+            if (!appOpened) {
+              // BILANG WALA ANG APP:
+              // 1. Maglalabas ng Toast
+              showToast("No installed app detected");
+              
+              // 2. Ililitaw ang Download Button at Text Notice
+              downloadArea.style.display = "block";
+
+              status.innerText = "❌ Hindi na-detect ang GeoPluscode Messages App.";
+            } else {
+              status.innerText = "✅ Nabuksan ang GeoPluscode Messages App!";
+              downloadArea.style.display = "none";
+            }
+            btn.disabled = false;
+          }, 2500);
+
+        },
+        (error) => {
+          alert("Siguraduhing naka-ON ang GPS sa notification bar ng phone mo.");
+          btn.disabled = false;
+          status.innerText = "❌ Nabigo ang pagkuha ng GPS.";
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    } else {
+      alert("Hindi suportado ng browser mo ang GPS location.");
+      btn.disabled = false;
+    }
+  }
+</script>
+
+</body>
+</html>
